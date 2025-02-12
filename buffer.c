@@ -91,6 +91,12 @@ str_buffer_t *str_buffer_new_blank(size_t capacity) {
   return buffer;
 }
 
+str_buffer_t *str_buffer_new_from(char32_t *contents, size_t length) {
+  str_buffer_t *buffer = str_buffer_new_blank(length * BUFFER_GROWTH_RATE);
+  str_buffer_concat(buffer, contents, length);
+  return buffer;
+}
+
 str_buffer_t *str_buffer_grow_capacity(str_buffer_t *buffer,
                                        size_t minimum_growth) {
   size_t growth_size = (buffer->capacity + minimum_growth) * BUFFER_GROWTH_RATE;
