@@ -136,6 +136,16 @@ str_buffer_t *str_buffer_add_char(str_buffer_t *buffer, char32_t chr) {
   return buffer;
 }
 
+str_buffer_t *str_buffer_new_substring(str_buffer_t *buffer, size_t start,
+                                       size_t span) {
+  if (buffer == NULL)
+    return NULL;
+
+  str_buffer_t *result = str_buffer_new_blank(span);
+  result = str_buffer_copy(result, buffer->contents, start, span);
+  return result;
+}
+
 str_buffer_t *str_buffer_list_append(str_buffer_t **list,
                                      str_buffer_t *buffer) {
   if (list == NULL || *list == NULL) {
@@ -231,7 +241,7 @@ str_buffer_t *txt_buffer_extract_range(const txt_buffer_t *node, size_t start,
   return result;
 }
 
-txtbuf_pair_t *txt_buffer_split(txt_buffer_t *node, size_t index) {
+txtbuf_pair_t *txt_buffer_split(const txt_buffer_t *node, size_t index) {
   if (node->rope_kind == ROPE_Leaf) {
     txt_buffer_t *left_leaf =
         txt_buffer_new_leaf(str_buffer_new_substring(node->leaf, 0, index));
@@ -265,4 +275,27 @@ txtbuf_pair_t *txt_buffer_split(txt_buffer_t *node, size_t index) {
   }
 
   return NULL;
+}
+
+size_t txt_buffer_total_length(const txt_buffer_t *node) {
+  if (node == NULL)
+    return 0;
+
+  if (node->rope_kind == ROPE_Leaf)
+    return node->leaf->length;
+
+  return node->weight + txt_buffer_total_length(node->internal.right);
+}
+
+txt_buffer_t *txt_buffer_concat(txt_buffer_t *left, txt_buffer_t *right) {
+  if (left == NULL)
+    return right;
+  if (right == NULL)
+    return left;
+
+  txt_buffer_t *node =
+      txt_buffer_new_internal(node->internal.left, node->internal.right);
+  node->weight = txt_buffer_total_length(left);
+
+  return node;
 }
