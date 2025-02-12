@@ -16,6 +16,7 @@ typedef struct REBuffer regex_buffer_t;
 typedef struct INBuffer input_buffer_t;
 typedef struct OUTBuffer output_buffer_t;
 typedef struct MARKBuffer mark_buffer_t;
+typedef struct CMDBuffer cmd_buffer_t;
 typedef struct Address address_t;
 typedef struct TXTBufferPair txtbuf_pair_t;
 
@@ -70,7 +71,7 @@ struct REBuffer {
 struct INBuffer {
   address_t addr_start;
   address_t addr_end;
-  command_t *command;
+  cmd_buffer_t *command;
 };
 
 struct OUTBuffer {
@@ -87,6 +88,19 @@ struct MARKBuffer {
   str_buffer_t *name;
   hash_t name_hash;
   struct MARKBuffer *next;
+};
+
+struct CMDBuffer {
+  enum CMDKind {
+    CMD_Find,
+    CMD_FindReplace,
+    CMD_Output,
+    CMD_Exec,
+    CMD_Append,
+    CMD_Insert,
+    CMD_Mark,
+    // ADD MORE TODO
+  } cmd_kind;
 };
 
 struct TXTBufferPair {
@@ -366,7 +380,7 @@ mark_buffer_t *mark_buffer_insert(mark_buffer_t **table, size_t line_no,
 }
 
 in_buffer_t *in_buffer_new(address_t *addr_start, address_t *addr_end,
-                           command_t *command) {
+                           cmd_buffer_t *command) {
   in_buffer_t *buffer = request_memory(current_arena, sizeof(in_buffer_t));
 
   buffer->addr_start = addr_start;
