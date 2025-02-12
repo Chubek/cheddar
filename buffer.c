@@ -12,7 +12,7 @@ extern Arena *current_arena;
 typedef uint32_t regex_flag_t;
 typedef struct STRBuffer str_buffer_t;
 typedef struct TXTBuffer txt_buffer_t;
-typedef struct REBuffer re_buffer_t;
+typedef struct REBuffer regex_buffer_t;
 typedef struct INBuffer input_buffer_t;
 typedef struct OUTBuffer output_buffer_t;
 typedef struct Address address_t;
