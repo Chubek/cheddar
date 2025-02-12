@@ -12,6 +12,7 @@ extern Arena *current_arena;
 typedef struct NFATrans nfa_trans_t;
 typedef struct NFAState nfa_state_t;
 typedef struct NFAMain nfa_main_t;
+typedef struct RETree regex_tree_t;
 
 struct NFATrans {
   char32_t symbol;
@@ -33,6 +34,37 @@ struct NFAMain {
   nfa_state_t *start_state;
   nfa_state_t *states;
   const char32_t *regexp;
+};
+
+struct RETree {
+  enum REKind {
+    RE_Concat,
+    RE_Union,
+    RE_Closure,
+    RE_CharRange,
+    RE_Bracket,
+    RE_EscapedChar,
+    RE_Char,
+    RE_CharCluster,
+    RE_Backtrack,
+    RE_InitLeaf,
+  } re_kind;
+
+  union {
+    str_buffer_t *v_buffer;
+
+    struct {
+      char32_t start;
+      char32_t end;
+    } v_range;
+
+    char32_t v_char;
+    size_t v_backtrack;
+  };
+
+  struct RETree *children;
+  struct RETree *next;
+  struct RETree *prev;
 };
 
 static int state_id_counter = 0;
@@ -161,7 +193,7 @@ nfa_trans_t *nfa_trans_list_filter_eps_trans(nfa_trans_t **list) {
   nfa_trans_t *head = *list;
 
   while (head != NULL) {
-    if (head->symbol == EPS_TRANS)
+    if (head->symbol == EPSILON_TRANS)
       nfa_trans_list_append(&filt_list, head);
     head = head->next;
   }
@@ -225,3 +257,33 @@ bool nfa_simulate_and_match(nfa_main_t *nfa, const char32_t *input,
     return false;
   }
 }
+
+regex_tree_t *regex_tree_new_blank(enum REKind kind) {
+  regex_tree_t *tree = request_memory(current_arena, sizeof(regex_tree_t));
+
+  tree->re_kind = kind;
+  tree->children = NULL;
+  tree->next = NULL;
+  tree->prev = NULL;
+
+  return tree;
+}
+
+regex_tree_t *regex_tree_list_append(regex_tree_t **list, regex_tree_t *leaf) {
+  if (list == NULL || *list == NULL) {
+    *list = leaf;
+    return *list;
+  }
+
+  regex_tree_t *head = *list;
+
+  while (head->next != NULL)
+    head = head->next;
+
+  leaf->prev = head;
+  head->next = leaf;
+
+  return head;
+}
+
+nfa_t *construct_nfa_from_regexp(const regex_tree_t *re_tree) {}
