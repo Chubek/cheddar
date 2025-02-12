@@ -305,3 +305,13 @@ txt_buffer_t *txt_buffer_concat(txt_buffer_t *left, txt_buffer_t *right) {
 
   return node;
 }
+
+regex_buffer_t *regex_buffer_create(str_buffer_t *patt, str_buffer_t *subst,
+                                    regex_flags_t flags) {
+  regex_buffer_t *buffer =
+      request_memory(current_arena, sizeof(regex_buffer_t));
+  buffer->patt = patt;
+  buffer->subst = subst;
+  buffer->flags = flags;
+  return buffer;
+}
