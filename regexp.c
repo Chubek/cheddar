@@ -17,8 +17,8 @@ typedef struct RETree regex_tree_t;
 struct NFATrans {
   char32_t symbol;
   nfa_state_t *target;
-  nfa_trans_t *next;
-  nfa_trans_t *prev;
+  struct NFATrans *next;
+  struct NFATrans *prev;
 };
 
 struct NFAState {
@@ -26,45 +26,16 @@ struct NFAState {
   bool is_accepting;
   nfa_trans_t *trans;
   nfa_trans_t *eps_trans;
-  nfa_state_t *next;
-  nfa_state_t *prev;
+  struct NFAState *next;
+  struct NFAState *prev;
 };
 
 struct NFAMain {
   nfa_state_t *start_state;
+  nfa_state_t *accept_state;
   nfa_state_t *states;
-  const char32_t *regexp;
-};
-
-struct RETree {
-  enum REKind {
-    RE_Concat,
-    RE_Union,
-    RE_Closure,
-    RE_CharRange,
-    RE_Bracket,
-    RE_EscapedChar,
-    RE_Char,
-    RE_CharCluster,
-    RE_Backtrack,
-    RE_InitLeaf,
-  } re_kind;
-
-  union {
-    str_buffer_t *v_buffer;
-
-    struct {
-      char32_t start;
-      char32_t end;
-    } v_range;
-
-    char32_t v_char;
-    size_t v_backtrack;
-  };
-
-  struct RETree *children;
-  struct RETree *next;
-  struct RETree *prev;
+  struct NFAMain *next;
+  struct NFAMain *prev;
 };
 
 static int state_id_counter = 0;
@@ -82,6 +53,17 @@ bool nfa_state_list_empty(nfa_state_t **list) {
   if (list == NULL || *list == NULL)
     return true;
   return false;
+}
+
+nfa_state_t *nfa_state_add_transition(nfa_state_t *state, char32_t symbol,
+                                      nfa_state_t *target) {
+  nfa_trans_list_append(&state->trans, nfa_trans_new(symbol, target));
+}
+
+nfa_state_t *nfa_state_add_eps_transition(nfa_state_t *state,
+                                          nfa_state_t *target) {
+  nfa_trans_list_append(&state->eps_trans,
+                        nfa_trans_new(EPSILON_TRANS, target));
 }
 
 nfa_state_t *nfa_state_list_append(nfa_state_t **list, nfa_state_t *state) {
@@ -258,32 +240,125 @@ bool nfa_simulate_and_match(nfa_main_t *nfa, const char32_t *input,
   }
 }
 
-regex_tree_t *regex_tree_new_blank(enum REKind kind) {
-  regex_tree_t *tree = request_memory(current_arena, sizeof(regex_tree_t));
-
-  tree->re_kind = kind;
-  tree->children = NULL;
-  tree->next = NULL;
-  tree->prev = NULL;
-
-  return tree;
+nfa_main_t *nfa_main_new(nfa_state_t *start_state, nfa_state_t *accept_state) {
+  nfa_main_t *nfa = request_memory(current_arena, sizeof(nfa_main_t));
+  nfa->start_state = start_state;
+  nfa->accept_state = accept_state;
+  nfa->states = NULL;
+  nfa->next = NULL;
+  nfa->prev = NULL;
+  nfa_state_list_append(&nfa->states, start_state);
+  nfa_state_list_append(&nfa->states, end_state);
+  return nfa;
 }
 
-regex_tree_t *regex_tree_list_append(regex_tree_t **list, regex_tree_t *leaf) {
+nfa_main_t *nfa_main_new_literal(char32_t symbol) {
+  nfa_state_t *start_state = nfa_state_new(false);
+  nfa_state_t *accept_state = nfa_state_new(true);
+  nfa_state_add_transiton(start_state, symbol, accept_state);
+  nfa_main_t *nfa = nfa_main_new(start_state, accept_state);
+  return nfa;
+}
+
+nfa_main_t *nfa_main_new_union(nfa_main_t *nfa_a, nfa_main_t *nfa_b) {
+  nfa_state_t *new_start_state = nfa_state_new(false);
+  nfa_state_t *new_accept_state = nfa_state_new(true);
+
+  nfa_state_add_eps_transition(new_start_state, nfa_a->start_state);
+  nfa_state_add_eps_transition(new_start_state, nfa_b->start_state);
+
+  nfa_state_add_eps_transition(nfa_a->accept_state, new_accept_state);
+  nfa_state_add_eps_transition(nfa_b->accept_state, new_accept_state);
+
+  nfa_main_t *nfa = nfa_main_new(new_start_state, new_accept_state);
+  return nfa;
+}
+
+nfa_main_t *nfa_main_new_closure(nfa_main_t *nfa) {
+  nfa_state_t *new_start_state = nfa_state_new(false);
+  nfa_state_t *new_accept_state = nfa_state_new(true);
+
+  nfa_state_add_eps_transition(new_start_state, new_accept_state);
+  nfa_state_add_eps_transition(nfa->accept_state, nfa->start_state);
+  nfa_state_add_eps_transition(new_start_state, nfa->start_state);
+  nfa_state_add_eps_transition(nfa->accept_state, new_accept_state);
+
+  nfa_main_t *nfa = nfa_main_new(new_start_state, new_accept_state);
+  return nfa;
+}
+
+nfa_main_t *nfa_main_new_concat(nfa_main_t *nfa_a, nfa_main_t *nfa_b) {
+  nfa_state_add_eps_transition(nfa_a->accept_state, nfa_b->start_state);
+
+  nfa_main_t *nfa = nfa_main_new(nfa_a->start_state, nfa_b->accept_state);
+  return nfa;
+}
+
+nfa_main_t *nfa_main_list_append(nfa_main_t **list, nfa_main_t *nfa) {
   if (list == NULL || *list == NULL) {
-    *list = leaf;
+    *list = nfa;
     return *list;
   }
 
-  regex_tree_t *head = *list;
+  nfa_main_t *head = *list;
 
   while (head->next != NULL)
     head = head->next;
 
-  leaf->prev = head;
-  head->next = leaf;
+  nfa->prev = head;
+  head->next = nfa;
 
   return head;
 }
 
-nfa_t *construct_nfa_from_regexp(const regex_tree_t *re_tree) {}
+nfa_main_t *nfa_main_list_pop(nfa_main_t **list) {
+  if (list == NULL || *list == NULL) {
+    nfa_main_t *tail = *list;
+    *list = NULL;
+    return tail;
+  }
+
+  nfa_main_t *head = *list;
+
+  while (head->next != NULL)
+    head = head->next;
+
+  if (head->prev != NULL)
+    head->prev->next = NULL;
+
+  head->prev = NULL;
+
+  return head;
+}
+
+nfa_main_t *nfa_main_from_regexp(const str_buffer_t *regexp) {
+  nfa_main_t *nfa_stack = NULL;
+
+  for (size_t i = 0; i < regexp->size; i++) {
+    switch (regexp->contents[i]) {
+    case U'|':
+      nfa_main_t *nfa_b = nfa_main_list_pop(&nfa_stack);
+      nfa_main_t *nfa_a = nfa_main_list_pop(&nfa_stack);
+      nfa_main_t union_nfa = nfa_main_new_union(nfa_a, nfa_b);
+      nfa_main_list_append(&nfa_stack, union_nfa);
+      continue;
+    case U'*':
+      nfa_main_t *nfa = nfa_main_list_pop(&nfa_stack);
+      nfa_main_t *closure_nfa = nfa_main_new_closure(nfa);
+      nfa_main_list_append(&nfa_stack, closure_nfa);
+      continue;
+    case U'\0':
+      nfa_main_t *nfa_b = nfa_main_list_pop(&nfa_stack);
+      nfa_main_t *nfa_a = nfa_main_list_pop(&nfa_stack);
+      nfa_main_t concat_nfa = nfa_main_new_concat(nfa_a, nfa_b);
+      nfa_main_list_append(&nfa_stack, concat_nfa);
+      continue;
+    default:
+      nfa_main_t *literal_nfa = nfa_main_new_literal(regexp->contents[i]);
+      nfa_main_list_append(&nfa_stack, literal_nfa);
+      continue;
+    }
+  }
+
+  return nfa_main_list_pop(&nfa_stack);
+}
