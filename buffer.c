@@ -9,12 +9,13 @@
 
 extern Arena *current_arena;
 
-typedef uint32_t regex_flag_t;
+typedef uint32_t regex_flag_t, hash_t;
 typedef struct STRBuffer str_buffer_t;
 typedef struct TXTBuffer txt_buffer_t;
 typedef struct REBuffer regex_buffer_t;
 typedef struct INBuffer input_buffer_t;
 typedef struct OUTBuffer output_buffer_t;
+typedef struct MARKBuffer mark_buffer_t;
 typedef struct Address address_t;
 typedef struct TXTBufferPair txtbuf_pair_t;
 
@@ -24,11 +25,16 @@ struct Address {
     ADDR_RelNumber,
     ADDR_Start,
     ADDR_End,
-    ADDR_PrevLn,
-    ADDR_NextLn,
+    ADDR_PattNext,
+    ADDR_PattPrev,
+    ADDR_Mark,
   } kind;
 
-  ssize_t value;
+  union {
+    ssize_t v_number;
+    regex_buffer_t *v_patt;
+    mark_buffer_t *v_mark;
+  };
 };
 
 struct STRBuffer {
@@ -74,6 +80,13 @@ struct OUTBuffer {
   size_t line_end;
   FILE *outfile;
   bool force;
+};
+
+struct MARKBuffer {
+  size_t line_no;
+  str_buffer_t *name;
+  hash_t name_hash;
+  struct MARKBuffer *next;
 };
 
 struct TXTBufferPair {
@@ -167,6 +180,18 @@ str_buffer_t *str_buffer_list_append(str_buffer_t **list,
   head->next = buffer;
 
   return head;
+}
+
+hash_t str_buffer_hash(str_buffer_t *buffer) {
+  if (buffer == NULL)
+    return 0;
+
+  hash_t hash = 5381;
+
+  for (size_t i = 0; i < buffer->length; i++)
+    hash = (hash * 33) + buffer->contents[i];
+
+  return hash;
 }
 
 txt_buffer_t *txt_buffer_new_leaf(str_buffer_t *leaf) {
@@ -314,4 +339,43 @@ regex_buffer_t *regex_buffer_create(str_buffer_t *patt, str_buffer_t *subst,
   buffer->subst = subst;
   buffer->flags = flags;
   return buffer;
+}
+
+mark_buffer_t *mark_buffer_insert(mark_buffer_t **table, size_t line_no,
+                                  str_buffer_t *name) {
+  hash_t name_hash = str_buffer_hash(name);
+  mark_buffer_t *head = *table;
+
+  while (head->next != NULL) {
+    if (head->name_hash == name_hash)
+      break;
+    head = head->next;
+  }
+
+  if (head->next == NULL) {
+    head->next = request_memory(current_arena, sizeof(mark_buffer_t));
+    head = head->next;
+    head->next = NULL;
+  }
+
+  head->line_no = line_no;
+  head->name = name;
+  head->name_hash = name_hash;
+
+  return head;
+}
+
+in_buffer_t *in_buffer_new(address_t *addr_start, address_t *addr_end,
+                           command_t *command) {
+  in_buffer_t *buffer = request_memory(current_arena, sizeof(in_buffer_t));
+
+  buffer->addr_start = addr_start;
+  buffer->addr_end = addr_end;
+  buffer->command = command;
+
+  return buffer;
+}
+
+out_buffer_t *out_buffer_new(/* TODO */) {
+  // TODO
 }
