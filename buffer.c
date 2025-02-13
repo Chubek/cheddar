@@ -196,6 +196,44 @@ str_buffer_t *str_buffer_list_append(str_buffer_t **list,
   return head;
 }
 
+str_buffer_t *str_buffer_splice_char(str_buffer_t *buffer, size_t index_left,
+                                     size_t index_right, char32_t chr) {
+  if (buffer->length + 1 <= buffer->capacity)
+    buffer = str_buffer_grow_capacity(buffer, index_right - index_left);
+
+  const char32_t *backup =
+      strndup(buffer->contents, buffer->length * sizeof(char32_t));
+  memset(buffer->contents, 0, buffer->length * sizeof(char32_t));
+  memmove(buffer->contents, backup, index_left * sizeof(char32_t));
+  memmove(&buffer->contents[index_right], &backup[index_right],
+          (buffer->length - index_right) * sizeof(char32_t));
+  memset(&buffer->contents[index_left + 1], chr,
+         (index_right - index_left) * sizeof(char32_t));
+  free(backup);
+
+  return buffer;
+}
+
+str_buffer_t *str_buffer_splice_substring(str_buffer_t *buffer,
+                                          str_buffer_t *substring,
+                                          size_t insert_pos) {
+  if (buffer->length + substring->length <= buffer->capacity)
+    buffer = str_buffer_grow_capacity(buffer, substring->length);
+
+  const char32_t *backup =
+      strndup(buffer->contetns, buffer->length * sizeof(char32_t));
+  memset(buffer->contents, 0, buffer->length * sizeof(char32_t));
+  memmove(buffer->contents, backup, insert_pos * sizeof(char32_t));
+  memmove(&buffer->contents[insert_pos - 1], substring->contents,
+          substring->length * sizeof(char32_t));
+  memmove(&buffer->contents[insert_pos + substring->length],
+          &backup[insert_pos],
+          (buffer->length - insert_pos) * sizeof(char32_t));
+  free(backup);
+
+  return buffer;
+}
+
 hash_t str_buffer_hash(str_buffer_t *buffer) {
   if (buffer == NULL)
     return 0;
