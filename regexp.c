@@ -331,6 +331,68 @@ nfa_main_t *nfa_main_list_pop(nfa_main_t **list) {
   return head;
 }
 
+str_buffer_t *add_concat_operator_to_regex(str_buffer_t *regex) {
+  str_buffer_t *result =
+      duplicate_memory(current_arena, regex, sizeof(str_buffer_t));
+
+  for (size_t i = 0; i < result->length - 1; i++) {
+    char32_t curr = result->contents[i];
+    char32_t peek = result->contents[i + 1];
+    if (isalnum(curr) && isalnum(peek))
+      result = str_buffer_splice_char(result, i, ++i, U'\0');
+    else if ((isalnum(curr) || curr == U'*' || curr == U')') && peek == U'(')
+      result = str_buffer_splice_char(result, i, ++i, U'\0');
+    else if ((curr == U'*' || curr == U')') && isalnum(peek))
+      result = str_buffer_splice_char(result, i, ++i, U'\0');
+    else
+      continue;
+  }
+
+  return result;
+}
+
+str_buffer_t *get_regex_to_postfix(const str_buffer_t *regex) {
+  str_buffer_t *result = str_buffer_new_blank(regex->length);
+  char32_t const *operator_stack = calloc(1, regex->length);
+  ssize_t stack_pointer = -1;
+
+  for (size_t i = 0; i < regex->length; i++) {
+    char32_t curr = regex->contents[i];
+    if (isalnum(curr))
+      result = str_buffer_add_char(result, curr);
+    else if (curr == U'(')
+      operator_stack[++stack_pointer] = curr;
+    else if (curr == U')') {
+      while (stack_pointer != 0 && operator_stack[stack_pointer] != U'(')
+        result = str_buffer_add_char(result, operator_stack[stack_pointer--]);
+
+      if (stack_pointer != 0 && operator_stack[stack_pointer] == U'(')
+        stack_pointer--;
+    } else if (curr == U'*' || curr == U'\0' || curr == U'|') {
+      while (stack_pointer != 0 &&
+             get_regex_operator_precedence(operator_stack[stack_pointer]) >=
+                 get_regex_operator_precedence(cur))
+        result = str_buffer_add_char(result, operator_stack[stack_pointer--]);
+      operator_stack[++stack_pointer] = curr;
+    }
+  }
+
+  return result;
+}
+
+int get_regex_operator_precedence(char32_t operator) {
+  switch (operator) {
+  case U'*':
+    return 3;
+  case U'\0':
+    return 2;
+  case U'|':
+    return 1;
+  default:
+    return 0;
+  }
+}
+
 nfa_main_t *nfa_main_from_regexp(const str_buffer_t *regexp) {
   nfa_main_t *nfa_stack = NULL;
 
