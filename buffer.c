@@ -175,7 +175,7 @@ str_buffer_t *str_buffer_add_char(str_buffer_t *buffer, char32_t chr) {
   if (buffer->length + 1 >= buffer->capacity)
     buffer = str_buffer_grow_capacity(buffer, 0);
 
-  buffer->contents[buffer->length] = chr;
+  buffer->contents[buffer->length++] = chr;
 
   return buffer;
 }
@@ -232,7 +232,7 @@ str_buffer_t *str_buffer_splice_substring(str_buffer_t *buffer,
     buffer = str_buffer_grow_capacity(buffer, substring->length);
 
   const char32_t *backup =
-      strndup(buffer->contetns, buffer->length * sizeof(char32_t));
+      strndup(buffer->contnents, buffer->length * sizeof(char32_t));
   memset(buffer->contents, 0, buffer->length * sizeof(char32_t));
   memmove(buffer->contents, backup, insert_pos * sizeof(char32_t));
   memmove(&buffer->contents[insert_pos - 1], substring->contents,
@@ -241,6 +241,20 @@ str_buffer_t *str_buffer_splice_substring(str_buffer_t *buffer,
           &backup[insert_pos],
           (buffer->length - insert_pos) * sizeof(char32_t));
   free(backup);
+
+  return buffer;
+}
+
+str_buffer_t *str_buffer_remove_chunk(str_buffer_t *buffer, size_t start,
+                                      size_t span) {
+  if (buffer->length <= span)
+    return NULL;
+
+  const char32_t *backup =
+      strndup(buffer->contents, buffer->length * sizeof(char32_t));
+  memset(&buffer->contents[start], 0, span * sizeof(char32_t));
+  memmove(&buffer->contents[span - start], &buffer->contents[start + 1],
+          (buffer->length - span) * sizeof(char32_t));
 
   return buffer;
 }
