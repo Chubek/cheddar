@@ -139,7 +139,7 @@ str_buffer_t *str_buffer_copy(str_buffer_t *buffer, char32_t *copy_contents,
   if (span - start >= buffer->capacity - buffer->length)
     buffer = str_buffer_grow_capacity(buffer, span - start);
 
-  memmove(&buffer->contents[start - 1], copy_contents, span * sizeof(char32_t));
+  memmove(&buffer->contents[start], copy_contents, span * sizeof(char32_t));
   buffer->length += span - start;
 
   return buffer;
@@ -155,6 +155,20 @@ str_buffer_t *str_buffer_concat(str_buffer_t *buffer, char32_t *concat_contents,
   buffer->length += concat_length;
 
   return buffer;
+}
+
+str_buffer_t *str_buffer_merge(str_buffer_t *buffer_a, str_buffer_t *buffer_b) {
+  if (buffer_a == NULL || buffer_b == NULL)
+    return NULL;
+
+  str_buffer_t *merged =
+      str_buffer_new_blank(buffer_a->length + buffer_b->length);
+  memmove(merged->contents, buffer_a->contents,
+          buffer_a->length * sizeof(char32_t));
+  memmove(&merged->contents[buffer_a->length - 1], buffer_b->contents,
+          buffer_b->length * sizeof(char32_t));
+
+  return merged;
 }
 
 str_buffer_t *str_buffer_add_char(str_buffer_t *buffer, char32_t chr) {
