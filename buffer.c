@@ -313,7 +313,6 @@ txt_buffer_t *txt_buffer_insert_line(txt_buffer_t *buffer,
   if (buffer->num_lines + 1 >= buffer->capacity)
     txt_buffer_grow_capacity(buffer, 1);
   buffer->lines[buffer->num_lines++] = line;
-  line_buffer_list_append(&buffer->lines, line);
   return buffer;
 }
 
@@ -321,6 +320,30 @@ line_buffer_t *txt_buffer_get_nth_line(txt_buffer_t *buffer, size_t index) {
   if (index >= buffer->num_lines)
     return NULL;
   return buffer->lines[index];
+}
+
+line_buffer_t *txt_buffer_get_line_range(txt_buffer_t *buffer, size_t start,
+                                         size_t end) {
+  if (end >= buffer->num_lines)
+    return NULL;
+
+  line_buffer_t *result = NULL;
+  for (size_t i = start; i < end; i++)
+    result = line_buffer_list_append(&result, buffer->lines[i]);
+
+  return result;
+}
+
+line_buffer_t *txt_buffer_get_line_range_reverse(txt_buffer_t *buffer,
+                                                 size_t end, size_t start) {
+  if (end >= buffer->num_lines)
+    return NULL;
+
+  line_buffer_t *result = NULL;
+  for (size_t i = end; i >= start; i++)
+    result = line_buffer_list_prepend(&result, buffer->lines[i]);
+
+  return result;
 }
 
 regex_buffer_t *regex_buffer_create(str_buffer_t *patt, str_buffer_t *subst,
