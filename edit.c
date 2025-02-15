@@ -32,7 +32,7 @@ txt_buffer_t *read_lines_to_text_buffer(void) {
 
   while (true) {
     curr_line = read_line();
-    if (curr_line == NULL)
+    if (curr_line == NULL || str_buffer_equals(curr_line, COMMAND_END_EDIT))
       break;
 
     text_buffer = txt_buffer_insert_line(text_buffer, curr_line);

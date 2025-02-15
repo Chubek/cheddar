@@ -207,6 +207,17 @@ str_buffer_t *str_buffer_list_append(str_buffer_t **list,
   return head;
 }
 
+bool str_buffer_equals(str_buffer_t *buffer, const char32_t *comp) {
+  size_t i = 0;
+  char32_t chr = 0;
+
+  while ((chr = *comp++) && i < buffer->length)
+    if (buffer->contents[i++] != chr)
+      return false;
+
+  return true;
+}
+
 str_buffer_t *str_buffer_splice_char(str_buffer_t *buffer, size_t index_left,
                                      size_t index_right, char32_t chr) {
   if (buffer->length + 1 <= buffer->capacity)
