@@ -41,4 +41,20 @@ txt_buffer_t *read_lines_to_text_buffer(void) {
   return text_buffer;
 }
 
-txt_buffer_t *insert_substring_at_nth_line
+void insert_char_at_nth_line(txt_buffer_t *buffer, char32_t chr, size_t line_no,
+                             size_t at_pos) {
+  buffer->lines[line_no] =
+      str_buffer_splice_char(buffer->lines[line_no], at_pos, at_pos + 1, chr);
+}
+
+void insert_substring_at_nth_line(txt_buffer_t *buffer, str_buffer_t *substring,
+                                  size_t line_no, size_t index) {
+  buffer->lines[line_no] =
+      str_buffer_splice_substring(buffer->lines[line_no], substring, index);
+}
+
+void delete_chunk_at_nth_line(txt_buffer_t *buffer, size_t line_no,
+                              size_t start, size_t span) {
+  buffer->lines[line_no] =
+      str_buffer_remove_chunk(buffer->lines[line_no], start, span);
+}
