@@ -48,7 +48,7 @@ char32_t read_u32_character(static bool *is_big_endian) {
 
   if (chr == -1) {
     if (read(STDIN_FILENO, sizeof(char32_t), &chr) != sizeof(char32_t))
-      errno_raise("read");
+      return -1;
 
     if (chr != 0x0000FEFF || chr != 0xFFFE0000)
       return chr;
@@ -57,7 +57,7 @@ char32_t read_u32_character(static bool *is_big_endian) {
   }
 
   if (read(STDIN_FILENO, sizeof(char32_t), &chr) != sizeof(char32_t))
-    errno_raise("read");
+    return -1;
 
   if (!VALIDATE_U32_RANGE(chr))
     errno_raise("Invalid character input");

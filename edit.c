@@ -4,15 +4,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define STR_BUFFER_INIT_CAP 1024
+#define LINE_BUFFER_INIT_CAP 1024
+#define TXT_BUFFER_INIT_CAP 512
 
 extern Arena *current_arena;
 
+static size_t line_number = 0;
 static bool is_big_endian = false;
-static txt_buffer_t *read_buffer = NULL;
 
-void read_line(void) {
-  str_buffer_t *line_buffer = str_buffer_new_blank(STR_BUFFER_INIT_CAP);
+line_buffer_t *read_line(void) {
+  str_buffer_t *line_buffer = str_buffer_new_blank(LINE_BUFFER_INIT_CAP);
   char32_t read_char = 0;
 
   while (read_char != '\n') {
@@ -22,19 +23,22 @@ void read_line(void) {
     line_buffer = str_buffer_add_char(line_buffer, read_char);
   }
 
-  return line_buffer;
+  return line_buffer_new(line_buffer, ++line_number);
 }
 
-void read_to_buffer(void) {
-   txt_buffer_t *buffer = NULL;
-   str_buffer_t *curr_ln = NULL;
+txt_buffer_t *read_lines_to_text_buffer(void) {
+  line_buffer_t *curr_line = NULL;
+  txt_buffer_t *text_buffer = txt_buffer_new_blank(TXT_BUFFER_INIT_CAP);
 
-   while (true) {
-	curr_ln = read_line();
-	if (curr_ln == NULL)
-		break;
+  while (true) {
+    curr_line = read_line();
+    if (curr_line == NULL)
+      break;
 
-	buffer = txt_buffer_new_leaf(curr_ln);
-	read_buffer = txt_buffer_new_internal(buffer, read_buffer);
-   }
+    text_buffer = txt_buffer_insert_line(text_buffer, curr_line);
+  }
+
+  return text_buffer;
 }
+
+txt_buffer_t *insert_substring_at_nth_line
