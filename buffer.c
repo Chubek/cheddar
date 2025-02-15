@@ -89,15 +89,21 @@ struct MARKBuffer {
 
 struct CMDBuffer {
   enum CMDKind {
-    CMD_Find,
-    CMD_FindReplace,
-    CMD_Output,
-    CMD_Exec,
-    CMD_Append,
-    CMD_Insert,
-    CMD_Mark,
-    // ADD MORE TODO
+    CMD_InsertLine,
+    CMD_SpliceChar,
+    CMD_SpliceString,
+    CMD_DeleteChunk,
   } cmd_kind;
+
+  union {
+    cmd_insert_line_t *v_insert_line;
+    cmd_splice_char_t *v_splice_char;
+    cmd_splice_string_t *v_splice_string;
+    cmd_delete_chunk_t *v_delete_chunk;
+  };
+
+  struct CMDBuffer *next;
+  struct CMDBuffer *prev;
 };
 
 struct TXTBufferPair {
