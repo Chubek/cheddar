@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern Arena *current_arena;
+
 typedef struct Command command_t;
 typedef struct CMDLineInsert cmd_line_insert_t;
 typedef struct CMDSpliceChar cmd_splice_char_t;
@@ -15,6 +17,8 @@ struct Command {
     CMD_SpliceChar,
     CMD_SpliceString,
     CMD_DeleteChunk,
+    CMD_Undo,
+    CMD_Redo,
   } cmd_kind;
 
   union {
@@ -22,8 +26,12 @@ struct Command {
     cmd_splice_char_t v_splice_char;
     cmd_splice_strig_t v_splice_string;
     cmd_delete_chunk_t v_delete_chunk;
+    struct Command *v_command_list;
     // TODO: Add more
   };
+
+  struct Command *next;
+  struct Command *prev;
 };
 
 struct CMDLineInsert {
@@ -51,6 +59,40 @@ struct CMDDeleteChunk {
   size_t start;
   size_t span;
 };
+
+command_t *push_command(command_t **list, command_t *cmd) {
+  if (list == NULL || *list == NULL) {
+    *list = cmd;
+    return *list;
+  }
+
+  command_t *head = *list;
+
+  while (head->next != NULL)
+    head = head->next;
+
+  cmd->prev = head;
+  head->next = cmd;
+
+  return head;
+}
+
+command_t *pop_command(command_t **list) {
+  if (list == NULL || *list == NULL)
+    return NULL;
+
+  command_t *head = *list;
+
+  while (head->next != NULL)
+    head = head->next;
+
+  if (head->prev != NULL) {
+    head->prev->next = NULL;
+    head->prev = NULL;
+  }
+
+  return head;
+}
 
 command_t *command_new_insert_line(txt_buffer_t *buffer, line_buffer_t *line) {
   command_t *cmd = request_memory(current_arena, sizeof(command_t));
@@ -90,5 +132,19 @@ command_t *command_new_delete_chunk(txt_buffer_t *buffer, size_t line_no,
   cmd->v_delete_chunk.line_no = line_no;
   cmd->v_delete_chunk.start = start;
   cmd->v_delete_chunk.span = span;
+  return cmd;
+}
+
+command_t *command_new_undo(void) {
+  command_t *cmd = request_memory(current_arena, sizeof(command_t));
+  cmd->cmd_kind = CMD_Undo;
+  cmd->v_command_list = NULL;
+  return cmd;
+}
+
+command_t *command_new_redo(void) {
+  command_t *cmd = request_memory(current_arena, sizeof(command_t));
+  cmd->cmd_kind = CMD_Redo;
+  cmd->v_command_list = NULL;
   return cmd;
 }
