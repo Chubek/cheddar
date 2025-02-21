@@ -6,6 +6,7 @@
 #include <uchar.h>
 
 typedef struct GAPBuffer gap_buffer_t;
+typedef struct ADDRBuffer addr_buffer_t;
 
 struct GAPBuffer {
   char32_t *contents;
@@ -13,6 +14,30 @@ struct GAPBuffer {
   size_t gap_start;
   size_t gap_end;
 };
+
+struct ADDRBuffer {
+  enum ADDRKind {
+    ADDR_Abs,
+    ADDR_Rel,
+    ADDR_Range,
+    ADDR_Start,
+    ADDR_End,
+    ADDR_PrevLn,
+    ADDR_NextLn,
+  } kind;
+
+    ssize_t start;
+    ssize_t end;
+};
+
+addr_buffer_t *addr_buffer_create(struct ADDRKind kind, ssize_t start,
+                                  ssize_t end) {
+  addr_buffer_t *buffer = request_memory(sizeof(addr_buffer_t));
+  buffer->kind = kind;
+  buffer->start = start;
+  buffer->end = end;
+  return buffer;
+}
 
 gap_buffer_t *gap_buffer_create(size_t initial_size) {
   gap_buffer_t *buffer = request_memory(sizeof(gap_buffer_t));
