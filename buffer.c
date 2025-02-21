@@ -38,12 +38,15 @@ struct REGEXPBuffer {
   command_t *action;
 };
 
-regexp_buffer_t *regexp_buffer_create(const char32_t *patt1, const char32_t *patt2, const char32_t *replc, command_t *action) {
-    regexp_buffer_t *buffer = request_memory(sizeof(regexp_buffer_t));
-    buffer->pattern1 = patt1;
-    buffer->pattern2 = patt2;
-    buffer->replace = replc;
-    return buffer;
+regexp_buffer_t *regexp_buffer_create(const char32_t *patt1,
+                                      const char32_t *patt2,
+                                      const char32_t *replc,
+                                      command_t *action) {
+  regexp_buffer_t *buffer = request_memory(sizeof(regexp_buffer_t));
+  buffer->pattern1 = patt1;
+  buffer->pattern2 = patt2;
+  buffer->replace = replc;
+  return buffer;
 }
 
 addr_buffer_t *addr_buffer_create(enum ADDRKind kind, ssize_t start,
