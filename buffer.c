@@ -5,437 +5,117 @@
 #include <string.h>
 #include <uchar.h>
 
-#define BUFFER_GROWTH_RATE 1.2
+typedef struct GAPBuffer gap_buffer_t;
 
-extern Arena *current_arena;
-
-typedef uint32_t regex_flag_t, hash_t;
-typedef struct STRBuffer str_buffer_t;
-typedef struct LINEBuffer line_buffer_t;
-typedef struct TXTBuffer txt_buffer_t;
-typedef struct REBuffer regex_buffer_t;
-typedef struct INBuffer input_buffer_t;
-typedef struct OUTBuffer output_buffer_t;
-typedef struct MARKBuffer mark_buffer_t;
-typedef struct CMDBuffer cmd_buffer_t;
-typedef struct Address address_t;
-typedef struct TXTBufferPair txtbuf_pair_t;
-
-struct Address {
-  enum AddressKind {
-    ADDR_AbsNumber,
-    ADDR_RelNumber,
-    ADDR_Start,
-    ADDR_End,
-    ADDR_PattNext,
-    ADDR_PattPrev,
-    ADDR_Mark,
-  } kind;
-
-  union {
-    ssize_t v_number;
-    regex_buffer_t *v_patt;
-    mark_buffer_t *v_mark;
-  };
-};
-
-struct STRBuffer {
+struct GAPBuffer {
   char32_t *contents;
-  size_t length;
-  size_t capacity;
-  struct STRBuffer *next;
+  size_t contents_size;
+  size_t gap_start;
+  size_t gap_end;
 };
 
-struct LINEBuffer {
-  str_buffer_t *contents;
-  size_t line_no;
-  struct LINEBuffer *next;
-  struct LINEBuffer *prev;
-};
+gap_buffer_t *gap_buffer_create(size_t initial_size) {
+  gap_buffer_t *buffer = request_memory(sizeof(gap_buffer_t));
 
-struct TXTBuffer {
-  line_buffer_t *lines;
-  size_t num_lines;
-  size_t line_capacity;
-};
-
-struct REBuffer {
-  str_buffer_t *patt;
-  str_buffer_t *subst;
-  regex_flag_t flags;
-};
-
-struct INBuffer {
-  address_t addr_start;
-  address_t addr_end;
-  cmd_buffer_t *command;
-};
-
-struct OUTBuffer {
-  txt_buffer_t *source_text;
-  str_buffer_t *scratch;
-  size_t line_start;
-  size_t line_end;
-  FILE *outfile;
-  bool force;
-};
-
-struct MARKBuffer {
-  size_t line_no;
-  str_buffer_t *name;
-  hash_t name_hash;
-  struct MARKBuffer *next;
-};
-
-struct CMDBuffer {
-  enum CMDKind {
-    CMD_InsertLine,
-    CMD_SpliceChar,
-    CMD_SpliceString,
-    CMD_DeleteChunk,
-  } cmd_kind;
-
-  union {
-    cmd_insert_line_t *v_insert_line;
-    cmd_splice_char_t *v_splice_char;
-    cmd_splice_string_t *v_splice_string;
-    cmd_delete_chunk_t *v_delete_chunk;
-  };
-
-  struct CMDBuffer *next;
-  struct CMDBuffer *prev;
-};
-
-struct TXTBufferPair {
-  txt_buffer_t *left;
-  txt_buffer_t *right;
-};
-
-str_buffer_t *str_buffer_new_blank(size_t capacity) {
-  str_buffer_t *buffer = request_memory(current_arena, sizeof(str_buffer_t));
-  buffer->contents = request_memory(current_arena, capacity * sizeof(char32_t));
-  buffer->capacity = capacity;
-  buffer->length = 0;
-  buffer->next = NULL;
-
-  return buffer;
-}
-
-str_buffer_t *str_buffer_new_from(char32_t *contents, size_t length) {
-  str_buffer_t *buffer = str_buffer_new_blank(length * BUFFER_GROWTH_RATE);
-  str_buffer_concat(buffer, contents, length);
-  return buffer;
-}
-
-str_buffer_t *str_buffer_grow_capacity(str_buffer_t *buffer,
-                                       size_t minimum_growth) {
-  size_t growth_size = (buffer->capacity + minimum_growth) * BUFFER_GROWTH_RATE;
-  TO_NEAREST_POWER_OF_TWO(growth_rate);
-
-  buffer->contents =
-      resize_memory(&current_arena, buffer->contents, buffer->capacity,
-                    growth_size, sizeof(char32_t));
-  buffer->capacity = growth_size;
-
-  return buffer;
-}
-
-str_buffer_t *str_buffer_copy(str_buffer_t *buffer, char32_t *copy_contents,
-                              size_t start, size_t span) {
-  if (span - start >= buffer->capacity - buffer->length)
-    buffer = str_buffer_grow_capacity(buffer, span - start);
-
-  memmove(&buffer->contents[start], copy_contents, span * sizeof(char32_t));
-  buffer->length += span - start;
-
-  return buffer;
-}
-
-str_buffer_t *str_buffer_concat(str_buffer_t *buffer, char32_t *concat_contents,
-                                size_t concat_length) {
-  if (concat_length >= buffer->capacity - buffer->length)
-    buffer = str_buffer_grow_capacity(buffer, concat_length);
-
-  memmove(&buffer->contents[buffer->length - 1], concat_contents,
-          concat_length * sizeof(char32_t));
-  buffer->length += concat_length;
-
-  return buffer;
-}
-
-str_buffer_t *str_buffer_merge(str_buffer_t *buffer_a, str_buffer_t *buffer_b) {
-  if (buffer_a == NULL || buffer_b == NULL)
-    return NULL;
-
-  str_buffer_t *merged =
-      str_buffer_new_blank(buffer_a->length + buffer_b->length);
-  memmove(merged->contents, buffer_a->contents,
-          buffer_a->length * sizeof(char32_t));
-  memmove(&merged->contents[buffer_a->length - 1], buffer_b->contents,
-          buffer_b->length * sizeof(char32_t));
-
-  return merged;
-}
-
-str_buffer_t *str_buffer_add_char(str_buffer_t *buffer, char32_t chr) {
-  if (buffer->length + 1 >= buffer->capacity)
-    buffer = str_buffer_grow_capacity(buffer, 0);
-
-  buffer->contents[buffer->length++] = chr;
-
-  return buffer;
-}
-
-str_buffer_t *str_buffer_new_substring(str_buffer_t *buffer, size_t start,
-                                       size_t span) {
   if (buffer == NULL)
-    return NULL;
+    raise("Region allocation error");
 
-  str_buffer_t *result = str_buffer_new_blank(span);
-  result = str_buffer_copy(result, buffer->contents, start, span);
-  return result;
-}
+  buffer->contents = request_memory(initial_size * sizeof(char32_t));
 
-str_buffer_t *str_buffer_list_append(str_buffer_t **list,
-                                     str_buffer_t *buffer) {
-  if (list == NULL || *list == NULL) {
-    *list = buffer;
-    return *list;
-  }
+  if (buffer->contents == NULL)
+    raise("Region allocation error");
 
-  str_buffer_t *head = *list;
-
-  while (head->next != NULL)
-    head = head->next;
-
-  head->next = buffer;
-
-  return head;
-}
-
-bool str_buffer_equals(str_buffer_t *buffer, const char32_t *comp) {
-  size_t i = 0;
-  char32_t chr = 0;
-
-  while ((chr = *comp++) && i < buffer->length)
-    if (buffer->contents[i++] != chr)
-      return false;
-
-  return true;
-}
-
-str_buffer_t *str_buffer_splice_char(str_buffer_t *buffer, size_t index_left,
-                                     size_t index_right, char32_t chr) {
-  if (buffer->length + 1 <= buffer->capacity)
-    buffer = str_buffer_grow_capacity(buffer, index_right - index_left);
-
-  const char32_t *backup =
-      strndup(buffer->contents, buffer->length * sizeof(char32_t));
-  memset(buffer->contents, 0, buffer->length * sizeof(char32_t));
-  memmove(buffer->contents, backup, index_left * sizeof(char32_t));
-  memmove(&buffer->contents[index_right], &backup[index_right],
-          (buffer->length - index_right) * sizeof(char32_t));
-  memset(&buffer->contents[index_left + 1], chr,
-         (index_right - index_left) * sizeof(char32_t));
-  free(backup);
+  buffer->contents_size = initial_size;
+  buffer->gap_start = 0;
+  buffer->gap_end = initial_size;
 
   return buffer;
 }
 
-str_buffer_t *str_buffer_splice_substring(str_buffer_t *buffer,
-                                          str_buffer_t *substring,
-                                          size_t insert_pos) {
-  if (buffer->length + substring->length <= buffer->capacity)
-    buffer = str_buffer_grow_capacity(buffer, substring->length);
+int gap_buffer_insert(gap_buffer_t *buffer, char32_t chr) {
+  if (buffer->start == buffer->end)
+    if (!(buffer = gap_buffer_expand(buffer)))
+      return 0;
 
-  const char32_t *backup =
-      strndup(buffer->contnents, buffer->length * sizeof(char32_t));
-  memset(buffer->contents, 0, buffer->length * sizeof(char32_t));
-  memmove(buffer->contents, backup, insert_pos * sizeof(char32_t));
-  memmove(&buffer->contents[insert_pos - 1], substring->contents,
-          substring->length * sizeof(char32_t));
-  memmove(&buffer->contents[insert_pos + substring->length],
-          &backup[insert_pos],
-          (buffer->length - insert_pos) * sizeof(char32_t));
-  free(backup);
-
-  return buffer;
+  buffer->contents[buffer->gap_start++] = chr;
+  return 1;
 }
 
-str_buffer_t *str_buffer_remove_chunk(str_buffer_t *buffer, size_t start,
-                                      size_t span) {
-  if (buffer->length <= span)
-    return NULL;
-
-  const char32_t *backup =
-      strndup(buffer->contents, buffer->length * sizeof(char32_t));
-  memset(&buffer->contents[start], 0, span * sizeof(char32_t));
-  memmove(&buffer->contents[span - start], &buffer->contents[start + 1],
-          (buffer->length - span) * sizeof(char32_t));
-
-  return buffer;
+int gap_buffer_backspace(gap_buffer_t *buffer) {
+  if (buffer->gap_start == 0)
+    return 0;
+  buffer->gap_start--;
+  return 1;
 }
 
-hash_t str_buffer_hash(str_buffer_t *buffer) {
-  if (buffer == NULL)
+int gap_buffer_delete(gap_buffer_t *buffer) {
+  if (buffer->gap_end == gap->contents_size)
+    return 0;
+  buffer->gap_end++;
+  return 1;
+}
+
+int gap_buffer_move_cursor(gap_buffer_t *buffer, size_t pos) {
+  size_t length = gap_buffer_length(buffer);
+
+  if (pos > length)
     return 0;
 
-  hash_t hash = 5381;
-
-  for (size_t i = 0; i < buffer->length; i++)
-    hash = (hash * 33) + buffer->contents[i];
-
-  return hash;
-}
-
-line_buffer_t *line_buffer_new(str_buffer_t *contents, size_t line_no) {
-  line_buffer_t *buffer = request_memory(current_arena, sizeof(line_buffer_t));
-  buffer->contents = contents;
-  buffer->line_no = line_no;
-  buffer->next = NULL;
-  buffer->prev = NULL;
-}
-
-line_buffer_t *line_buffer_list_append(line_buffer_t **list,
-                                       line_buffer_t *buffer) {
-  if (list == NULL || *list == NULL) {
-    *list = buffer;
-    return *list;
+  ssize_t delta = pos - buffer->gap_start;
+  if (delta > 0) {
+    while (delta-- > 0) {
+      if (buffer->gap_end >= buffer->contents_size)
+        return 0;
+      buffer->contents[buffer->gap_start++] =
+          buffer->contents[buffer->gap_end++];
+    }
+    else if (delta < 0) {
+      while (delta++ < 0) {
+        if (buffer->gap_start <= 0)
+          return 0;
+        buffer->contents[--buffer->gap_end] =
+            buffer->contents[--buffer->gap_start];
+      }
+    }
   }
 
-  line_buffer_t *head = *list;
-
-  while (head->next != NULL)
-    head = head->next;
-
-  buffer->prev = head;
-  head->next = buffer;
-
-  return head;
+  return 1;
 }
 
-line_buffer_t *line_buffer_list_prepend(line_buffer_t **list,
-                                        line_buffer_t *buffer) {
-  if (list == NULL || *line == NULL) {
-    *list = buffer;
-    return *list;
-  }
+int gap_buffer_expand(gap_buffer_t *buffer) {
+  size_t new_size = buffer->contents_size * 2;
+  if (new_size == 0)
+    new_size = 1;
 
-  line_buffer_t *tail = *list;
+  char32_t *new_contents = request_memory(new_size * sizeof(char32_t));
 
-  while (tail->prev != NULL)
-    tail = tail->prev;
+  if (new_contents == NULL)
+    raise("Region allocation error");
 
-  buffer->next = tail;
-  tail->prev = buffer;
+  size_t contents_after_len = buffer->contents_size - buffer->gap_end;
 
-  return tail;
+  memmove(new_contents, buffer->contents, buffer->gap_start);
+  memmove(&new_contents[new_size - contents_after_len],
+          &buffer->contents[buffer->gap_end], contents_after_len);
+
+  buffer->contents = new_contents;
+  buffer->gap_end = new_size - contents_after_len;
+  buffer->contents_size = new_size;
+
+  return 1;
 }
 
-txt_buffer_t *txt_buffer_new(size_t capacity) {
-  txt_buffer_t *buffer = request_memory(current_arena, sizeof(txt_buffer_t));
-  buffer->lines =
-      request_memory(current_arena, sizeof(line_buffer_t) * capacity);
-  buffer->capacity = capacity;
-  buffer->num_lines = 0;
-  return buffer;
+size_t gap_buffer_length(gap_buffer_t *buffer) {
+  return buffer->start + (buffer->contents_size - buffer->end);
 }
 
-txt_buffer_t *txt_buffer_grow_capacity(txt_buffer_t *buffer,
-                                       size_t minimum_growth) {
-  size_t growth_size = (buffer->capacity + minimum_growth) * BUFFER_GROWTH_RATE;
-  TO_NEAREST_POWER_OF_TWO(growth_size);
+char32_t *gap_buffer_retrieve_contents(gab_buffer_t *buffer) {
+  size_t length = gab_buffer_length(buffer);
+  char32_t *extract = request_memory(length + 1);
 
-  buffer->lines = resize_memory(&current_arena, buffer->lines, buffer->capacity,
-                                growth_size, sizeof(line_buffer_t));
-  buffer->capacity = growth_size;
+  memmove(extract, buffer->contents, buffer->gap_start);
+  memmove(&extract[buffer->gap_start], buffer->contents + buffer->gap_end,
+          buffer->content_size - buffer->gap_end);
 
-  return buffer;
-}
-
-txt_buffer_t *txt_buffer_insert_line(txt_buffer_t *buffer,
-                                     line_buffer_t *line) {
-  if (buffer->num_lines + 1 >= buffer->capacity)
-    txt_buffer_grow_capacity(buffer, 1);
-  buffer->lines[buffer->num_lines++] = line;
-  return buffer;
-}
-
-line_buffer_t *txt_buffer_get_nth_line(txt_buffer_t *buffer, size_t index) {
-  if (index >= buffer->num_lines)
-    return NULL;
-  return buffer->lines[index];
-}
-
-line_buffer_t *txt_buffer_get_line_range(txt_buffer_t *buffer, size_t start,
-                                         size_t end) {
-  if (end >= buffer->num_lines)
-    return NULL;
-
-  line_buffer_t *result = NULL;
-  for (size_t i = start; i < end; i++)
-    result = line_buffer_list_append(&result, buffer->lines[i]);
-
-  return result;
-}
-
-line_buffer_t *txt_buffer_get_line_range_reverse(txt_buffer_t *buffer,
-                                                 size_t end, size_t start) {
-  if (end >= buffer->num_lines)
-    return NULL;
-
-  line_buffer_t *result = NULL;
-  for (size_t i = end; i >= start; i++)
-    result = line_buffer_list_prepend(&result, buffer->lines[i]);
-
-  return result;
-}
-
-regex_buffer_t *regex_buffer_create(str_buffer_t *patt, str_buffer_t *subst,
-                                    regex_flags_t flags) {
-  regex_buffer_t *buffer =
-      request_memory(current_arena, sizeof(regex_buffer_t));
-  buffer->patt = patt;
-  buffer->subst = subst;
-  buffer->flags = flags;
-  return buffer;
-}
-
-mark_buffer_t *mark_buffer_insert(mark_buffer_t **table, size_t line_no,
-                                  str_buffer_t *name) {
-  hash_t name_hash = str_buffer_hash(name);
-  mark_buffer_t *head = *table;
-
-  while (head->next != NULL) {
-    if (head->name_hash == name_hash)
-      break;
-    head = head->next;
-  }
-
-  if (head->next == NULL) {
-    head->next = request_memory(current_arena, sizeof(mark_buffer_t));
-    head = head->next;
-    head->next = NULL;
-  }
-
-  head->line_no = line_no;
-  head->name = name;
-  head->name_hash = name_hash;
-
-  return head;
-}
-
-in_buffer_t *in_buffer_new(address_t *addr_start, address_t *addr_end,
-                           cmd_buffer_t *command) {
-  in_buffer_t *buffer = request_memory(current_arena, sizeof(in_buffer_t));
-
-  buffer->addr_start = addr_start;
-  buffer->addr_end = addr_end;
-  buffer->command = command;
-
-  return buffer;
-}
-
-out_buffer_t *out_buffer_new(/* TODO */) {
-  // TODO
+  return extract;
 }
