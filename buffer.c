@@ -30,7 +30,7 @@ struct ADDRBuffer {
     ssize_t end;
 };
 
-addr_buffer_t *addr_buffer_create(struct ADDRKind kind, ssize_t start,
+addr_buffer_t *addr_buffer_create(enum ADDRKind kind, ssize_t start,
                                   ssize_t end) {
   addr_buffer_t *buffer = request_memory(sizeof(addr_buffer_t));
   buffer->kind = kind;
