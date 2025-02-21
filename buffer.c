@@ -7,6 +7,7 @@
 
 typedef struct GAPBuffer gap_buffer_t;
 typedef struct ADDRBuffer addr_buffer_t;
+typedef struct REGEXPBuffer regexp_buffer_t;
 
 struct GAPBuffer {
   char32_t *contents;
@@ -26,9 +27,24 @@ struct ADDRBuffer {
     ADDR_NextLn,
   } kind;
 
-    ssize_t start;
-    ssize_t end;
+  ssize_t start;
+  ssize_t end;
 };
+
+struct REGEXPBuffer {
+  const char32_t *pattern1;
+  const char32_t *pattern2;
+  const char32_t *replace;
+  command_t *action;
+};
+
+regexp_buffer_t *regexp_buffer_create(const char32_t *patt1, const char32_t *patt2, const char32_t *replc, command_t *action) {
+    regexp_buffer_t *buffer = request_memory(sizeof(regexp_buffer_t));
+    buffer->pattern1 = patt1;
+    buffer->pattern2 = patt2;
+    buffer->replace = replc;
+    return buffer;
+}
 
 addr_buffer_t *addr_buffer_create(enum ADDRKind kind, ssize_t start,
                                   ssize_t end) {
